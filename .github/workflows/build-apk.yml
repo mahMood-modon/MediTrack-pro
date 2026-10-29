@@ -1,0 +1,68 @@
+
+name: Build MediTrack Pro APK
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build debug APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+
+      - name: Install Android SDK packages
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Download Gradle 8.9
+        shell: bash
+        run: |
+          curl --fail --location --retry 3 \
+            https://services.gradle.org/distributions/gradle-8.9-bin.zip \
+            --output "$RUNNER_TEMP/gradle.zip"
+          unzip -q "$RUNNER_TEMP/gradle.zip" -d "$RUNNER_TEMP"
+
+      - name: Build MediTrack Pro APK
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          test -f MediTrackPro-Android.zip || {
+            echo "MediTrackPro-Android.zip is missing from repository root"
+            exit 1
+          }
+
+          mkdir -p "$RUNNER_TEMP/meditrack"
+          unzip -q MediTrackPro-Android.zip -d "$RUNNER_TEMP/meditrack"
+
+          cd "$RUNNER_TEMP/meditrack/MediTrackPro-Android"
+
+          "$RUNNER_TEMP/gradle-8.9/bin/gradle" \
+            --no-daemon assembleDebug
+
+          cp app/build/outputs/apk/debug/app-debug.apk \
+            "$GITHUB_WORKSPACE/MediTrackPro-debug.apk"
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: MediTrackPro-debug-apk
+          path: MediTrackPro-debug.apk
+          if-no-files-found: error
+          retention-days: 14
+          
